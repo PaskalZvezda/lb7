@@ -1,0 +1,40 @@
+name: CI
+
+on: push
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Boost
+        run: sudo apt-get update && sudo apt-get install -y libboost-program-options-dev libboost-filesystem-dev
+
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Package
+        run: cd build && cpack
+
+      - name: Test
+        run: |
+          sudo apt-get install -y ./build/bayan-1.0.0-Linux.deb
+          mkdir -p t/a t/b
+          echo "Hello, World" > t/a/world.txt
+          echo "Hello, C++" > t/a/cpp.txt
+          echo "Hello, World" > t/b/copy.txt
+          bayan t -l 1 -b 5
+
+      - name: Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          files: build/bayan-1.0.0-Linux.deb
