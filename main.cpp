@@ -69,10 +69,12 @@ private:
 
 using Group = std::vector<std::shared_ptr<File>>;
 
-void findDuplicates(const Group& group, std::size_t block, std::vector<Group>& result)
+void findDuplicates(const Group& group, std::size_t block, int& groups)
 {
     if (block == group.front()->blockCount()) {
-        result.push_back(group);
+        std::cout << (groups++ ? "\n" : "");
+        for (const auto& f : group)
+            std::cout << f->path().string() << '\n';
         return;
     }
     std::map<Hash, Group> parts;
@@ -80,23 +82,14 @@ void findDuplicates(const Group& group, std::size_t block, std::vector<Group>& r
         parts[f->block(block)].push_back(f);
     for (const auto& p : parts)
         if (p.second.size() > 1)
-            findDuplicates(p.second, block + 1, result);
+            findDuplicates(p.second, block + 1, groups);
 }
 
-std::regex maskToRegex(const std::string& mask)
+std::regex maskToRegex(std::string mask)
 {
-    std::string re;
-    for (char c : mask) {
-        if (c == '*')
-            re += ".*";
-        else if (c == '?')
-            re += '.';
-        else if (std::string("\\^$.|+()[]{}").find(c) != std::string::npos)
-            re += std::string("\\") + c;
-        else
-            re += c;
-    }
-    return std::regex(re, std::regex::icase);
+    mask = std::regex_replace(mask, std::regex(R"([.^$|()\[\]{}+\\])"), R"(\$&)");
+    mask = std::regex_replace(mask, std::regex(R"(\*)"), ".*");
+    return std::regex(std::regex_replace(mask, std::regex(R"(\?)"), "."), std::regex::icase);
 }
 
 int main(int argc, char* argv[])
@@ -169,16 +162,9 @@ int main(int argc, char* argv[])
         }
     }
 
-    std::vector<Group> result;
+    int groups = 0;
     for (const auto& s : bySize)
         if (s.second.size() > 1)
-            findDuplicates(s.second, 0, result);
-
-    for (std::size_t i = 0; i < result.size(); ++i) {
-        if (i)
-            std::cout << '\n';
-        for (const auto& f : result[i])
-            std::cout << f->path().string() << '\n';
-    }
+            findDuplicates(s.second, 0, groups);
     return 0;
 }
